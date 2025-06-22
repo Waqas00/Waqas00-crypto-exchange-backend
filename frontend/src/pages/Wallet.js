@@ -1,0 +1,1 @@
+export default function Wallet() { return <div style={{ padding: 20 }}>Wallet Page</div>; }
