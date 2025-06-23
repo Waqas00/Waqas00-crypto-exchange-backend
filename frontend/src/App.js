@@ -7,6 +7,11 @@ import Wallet from "./pages/Wallet";
 import Transactions from "./pages/Transactions";
 import AdminPanel from "./pages/AdminPanel";
 import Navbar from "./components/Navbar";
+import Orders from './pages/Orders';
+import Assets from './pages/Assets';
+import Account from './pages/Account';
+import Market from './pages/Market';
+
 
 function App() {
   return (
@@ -21,6 +26,10 @@ function App() {
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/admin" element={<AdminPanel />} />
+		  <Route path="/orders" element={<Orders />} />
+          <Route path="/assets" element={<Assets />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/market" element={<Market />} />
         </Routes>
       </div>
     </Router>

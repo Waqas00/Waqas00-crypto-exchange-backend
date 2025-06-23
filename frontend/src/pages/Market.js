@@ -8,7 +8,7 @@ export default function Market() {
   useEffect(() => {
     axios.get('https://crypto-exchange-backend-yd8j.onrender.com/api/coin/bitcoin')
       .then(res => setCoin(res.data))
-      .catch(err => console.error('Failed to fetch coin details', err));
+      .catch(err => console.error('Market fetch error:', err));
   }, []);
 
   if (!coin) return <p style={{ padding: 20 }}>Loading...</p>;
