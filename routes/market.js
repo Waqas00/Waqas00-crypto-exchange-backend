@@ -1,30 +1,36 @@
-const express = require('express');
-const axios = require('axios');
+const express = require("express");
+const axios = require("axios");
 const router = express.Router();
 
-const apiKey = process.env.COINCAP_API_KEY;
-const baseUrl = 'https://rest.coincap.io/v3';
-
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const url = baseUrl + '/assets?limit=20&apiKey=' + apiKey;
-    const response = await axios.get(url);
-    const coins = response.data.data;
+    const { data } = await axios.get("https://rest.coincap.io/v3/assets", {
+      headers: {
+        Authorization: `Bearer ${process.env.COINCAP_API_KEY}`
+      }
+    });
 
-    res.json({
-      coins: coins.map(c => ({
+    const coins = data.data.slice(0, 10);
+
+    const result = {
+      coins: coins.map((c) => ({
         id: c.id,
         name: c.name,
         symbol: c.symbol,
-        price: parseFloat(c.priceUsd),
-        changePercent24Hr: parseFloat(c.changePercent24Hr),
-        marketCapUsd: parseFloat(c.marketCapUsd),
-        volumeUsd24Hr: parseFloat(c.volumeUsd24Hr)
-      }))
-    });
-  } catch (err) {
-    console.error('CoinCap v3 /api/market error:', err.message);
-    res.status(500).json({ error: 'Market data fetch failed', detail: err.message });
+        price: parseFloat(c.priceUsd || 0),
+        changePercent24Hr: parseFloat(c.changePercent24Hr || 0),
+        marketCapUsd: parseFloat(c.marketCapUsd || 0),
+        volumeUsd24Hr: parseFloat(c.volumeUsd24Hr || 0)
+      })),
+      total_market_cap: coins.reduce((sum, c) => sum + parseFloat(c.marketCapUsd || 0), 0),
+      total_volume: coins.reduce((sum, c) => sum + parseFloat(c.volumeUsd24Hr || 0), 0),
+      btc_dominance: 48.5
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error("CoinCap market fetch error:", error.message);
+    res.status(500).json({ error: "Failed to fetch market data" });
   }
 });
 

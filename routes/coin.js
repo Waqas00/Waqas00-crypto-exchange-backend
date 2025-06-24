@@ -1,29 +1,35 @@
-const express = require('express');
-const axios = require('axios');
+const express = require("express");
+const axios = require("axios");
 const router = express.Router();
 
-const apiKey = process.env.COINCAP_API_KEY;
-const baseUrl = 'https://rest.coincap.io/v3';
+router.get("/:id", async (req, res) => {
+  const coinId = req.params.id;
 
-router.get('/:id', async (req, res) => {
   try {
-    const url = baseUrl + '/assets/' + req.params.id + '?apiKey=' + apiKey;
-    const response = await axios.get(url);
-    const coin = response.data.data;
+    const { data } = await axios.get(
+      `https://rest.coincap.io/v3/assets/${coinId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.COINCAP_API_KEY}`
+        }
+      }
+    );
+
+    const coin = data.data;
 
     res.json({
       id: coin.id,
       name: coin.name,
       symbol: coin.symbol,
-      current_price: parseFloat(coin.priceUsd),
-      market_cap: parseFloat(coin.marketCapUsd),
-      total_volume: parseFloat(coin.volumeUsd24Hr),
+      current_price: parseFloat(coin.priceUsd || 0),
+      market_cap: parseFloat(coin.marketCapUsd || 0),
+      total_volume: parseFloat(coin.volumeUsd24Hr || 0),
       high_24h: null,
       low_24h: null
     });
-  } catch (err) {
-    console.error('CoinCap v3 /api/coin/:id error:', err.message);
-    res.status(500).json({ error: 'Coin data fetch failed', detail: err.message });
+  } catch (error) {
+    console.error("CoinCap coin detail error:", error.message);
+    res.status(500).json({ error: "Failed to fetch coin detail" });
   }
 });
 
