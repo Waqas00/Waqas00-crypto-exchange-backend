@@ -4,17 +4,22 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const [coins, global] = await Promise.all([
+    const [coinRes, globalRes] = await Promise.all([
       axios.get('https://api.coincap.io/v2/assets?limit=20'),
       axios.get('https://api.coincap.io/v2/global')
     ]);
 
-    const result = {
-      total_market_cap: parseFloat(global.data.data.totalMarketCapUsd),
-      total_volume: parseFloat(global.data.data.total24HrVolumeUsd),
-      btc_dominance: parseFloat(coins.data.data.find(c => c.id === 'bitcoin')?.marketCapUsd || 0) /
-                      parseFloat(global.data.data.totalMarketCapUsd) * 100,
-      coins: coins.data.data.map(c => ({
+    const coins = coinRes.data.data;
+    const global = globalRes.data.data;
+
+    const btc = coins.find(c => c.id === 'bitcoin');
+    const btcDominance = btc ? (parseFloat(btc.marketCapUsd) / parseFloat(global.totalMarketCapUsd)) * 100 : 0;
+
+    res.json({
+      total_market_cap: parseFloat(global.totalMarketCapUsd),
+      total_volume: parseFloat(global.total24HrVolumeUsd),
+      btc_dominance: btcDominance,
+      coins: coins.map(c => ({
         id: c.id,
         name: c.name,
         symbol: c.symbol,
@@ -23,12 +28,10 @@ router.get('/', async (req, res) => {
         marketCapUsd: parseFloat(c.marketCapUsd),
         volumeUsd24Hr: parseFloat(c.volumeUsd24Hr)
       }))
-    };
-
-    res.json(result);
+    });
   } catch (err) {
-    console.error('CoinCap market API error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch market data' });
+    console.error('CoinCap /api/market error:', err.message);
+    res.status(500).json({ error: 'CoinCap market data fetch failed' });
   }
 });
 
