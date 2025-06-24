@@ -7,7 +7,8 @@ const baseUrl = 'https://rest.coincap.io/v3';
 
 router.get('/', async (req, res) => {
   try {
-    const response = await axios.get(\`\${baseUrl}/assets?limit=20&apiKey=\${apiKey}\`);
+    const url = baseUrl + '/assets?limit=20&apiKey=' + apiKey;
+    const response = await axios.get(url);
     const coins = response.data.data;
 
     res.json({
