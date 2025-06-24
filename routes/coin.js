@@ -2,11 +2,13 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
+const apiKey = process.env.COINCAP_API_KEY;
+const baseUrl = 'https://rest.coincap.io/v3';
+
 router.get('/:id', async (req, res) => {
   try {
-    console.log(`Fetching CoinCap data for: ${req.params.id}`);
-    const { data } = await axios.get(`https://api.coincap.io/v2/assets/${req.params.id}`);
-    const coin = data.data;
+    const response = await axios.get(\`\${baseUrl}/assets/\${req.params.id}?apiKey=\${apiKey}\`);
+    const coin = response.data.data;
 
     res.json({
       id: coin.id,
@@ -19,8 +21,8 @@ router.get('/:id', async (req, res) => {
       low_24h: null
     });
   } catch (err) {
-    console.error('CoinCap /api/coin/:id error:', err.message);
-    res.status(500).json({ error: 'CoinCap coin data fetch failed', detail: err.message });
+    console.error('CoinCap v3 /api/coin/:id error:', err.message);
+    res.status(500).json({ error: 'Coin data fetch failed', detail: err.message });
   }
 });
 
