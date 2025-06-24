@@ -1,1 +1,0 @@
-export default function Login() { return <div style={{ padding: 20 }}>Login Page</div>; }

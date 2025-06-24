@@ -1,1 +1,0 @@
-export default function Transactions() { return <div style={{ padding: 20 }}>Transactions</div>; }

@@ -4,24 +4,20 @@ const router = express.Router();
 
 router.get('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const url = `https://api.coingecko.com/api/v3/coins/${id}?localization=false&sparkline=false`;
-    const { data } = await axios.get(url);
-
-    const coin = {
-      id: data.id,
-      name: data.name,
-      symbol: data.symbol.toUpperCase(),
-      current_price: data.market_data.current_price.usd,
-      market_cap: data.market_data.market_cap.usd,
-      total_volume: data.market_data.total_volume.usd,
-      high_24h: data.market_data.high_24h.usd,
-      low_24h: data.market_data.low_24h.usd,
-    };
-
-    res.json(coin);
+    const { data } = await axios.get(`https://api.coincap.io/v2/assets/${req.params.id}`);
+    const coin = data.data;
+    res.json({
+      id: coin.id,
+      name: coin.name,
+      symbol: coin.symbol,
+      current_price: parseFloat(coin.priceUsd),
+      market_cap: parseFloat(coin.marketCapUsd),
+      total_volume: parseFloat(coin.volumeUsd24Hr),
+      high_24h: null,
+      low_24h: null
+    });
   } catch (err) {
-    console.error('Coin fetch failed:', err.message);
+    console.error('CoinCap coin error:', err.message);
     res.status(500).json({ error: 'Failed to fetch coin info' });
   }
 });

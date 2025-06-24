@@ -1,1 +1,0 @@
-export default function Register() { return <div style={{ padding: 20 }}>Register Page</div>; }
