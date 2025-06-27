@@ -12,18 +12,26 @@ router.get("/", async (req, res) => {
     const coins = capData.data.slice(0, 15);
 
     // 2. Enrich each coin with sparkline (last 24h hourly) from CoinGecko
+	const geckoIdMap = {
+  'binance-coin': 'binancecoin',      // CoinCap uses 'binance-coin', CoinGecko expects 'binancecoin'
+  'usd-coin': 'usd-coin',             // adjust if necessary
+  'wrapped-bitcoin': 'wrapped-bitcoin',
+  // add other overrides as needed
+};
+
     const coinsWithSpark = await Promise.all(
-      coins.map(async c => {
-        let sparkline = [];
-        try {
-          const cgRes = await axios.get(
-            `https://api.coingecko.com/api/v3/coins/${c.id}/market_chart`,
-            { params: { vs_currency: "usd", days: 1, interval: "hourly" } }
-          );
-          sparkline = cgRes.data.prices.map(point => point[1]);
-        } catch (err) {
-          console.warn(`Sparkline error for ${c.id}:`, err.message);
-        }
+  coins.map(async c => {
+    const geckoId = geckoIdMap[c.id] || c.id;
+    let sparkline = [];
+    try {
+      const cgRes = await axios.get(
+        `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart`,
+        { params: { vs_currency: 'usd', days: 1, interval: 'hourly' } }
+      );
+      sparkline = cgRes.data.prices.map(p => p[1]);
+    } catch (err) {
+      console.warn(`Sparkline error for ${c.id} (mapped to ${geckoId}):`, err.message);
+    }
         return {
           id: c.id,
           name: c.name,
