@@ -11,11 +11,22 @@ router.get('/:id', async (req, res) => {
       `https://api.coingecko.com/api/v3/coins/${id}/market_chart`,
       { params: { vs_currency: 'usd', days: 1 } }
     );
-    res.json(response.data);
+    return res.json(response.data);
   } catch (err) {
-    console.error('Proxy error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch sparkline' });
+    if (err.response) {
+      // the request was made and the server responded with a status code
+      console.error('Coingecko error:', err.response.status, err.response.data);
+      return res
+        .status(err.response.status)
+        .json(err.response.data);
+    } else {
+      // something else went wrong (network, DNS, etc.)
+      console.error('Proxy error:', err.message);
+      return res
+        .status(500)
+        .json({ error: err.message });
+    }
   }
 });
 
-module.exports = router;
+module.exports = router; = router;
