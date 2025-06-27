@@ -9,7 +9,7 @@ router.get("/", async (req, res) => {
       "https://rest.coincap.io/v3/assets",
       { headers: { Authorization: `Bearer ${process.env.COINCAP_API_KEY}` } }
     );
-    const coins = capData.data.slice(0, 20);
+    const coins = capData.data.slice(0, 15);
 
     // 2. Enrich each coin with sparkline (last 24h hourly) from CoinGecko
     const coinsWithSpark = await Promise.all(
