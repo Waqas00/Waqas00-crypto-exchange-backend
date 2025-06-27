@@ -8,6 +8,7 @@ const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
 const marketRoutes = require('./routes/market');
 const coinRoutes = require('./routes/coin');
+const proxyRouter = require('./routes/proxy');
 const app = express();
 app.use(cors({ origin: process.env.CORS }));
 app.use(express.json());
@@ -23,7 +24,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/market', marketRoutes);
 app.use('/api/coin', coinRoutes);
-
+app.use('/api/sparkline', proxyRouter);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
