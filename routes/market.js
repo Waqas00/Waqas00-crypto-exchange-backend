@@ -20,45 +20,45 @@ let geckoMap = {};
   }
 })();
 
+// 11. Debugging Sparkline Fetch & Rate-Limit Handling
+// Replace the parallel Promise.all with a sequential loop and delay to avoid rate limits, and add detailed logs.
 router.get("/", async (req, res) => {
   try {
-    // 1. Fetch CoinCap assets...
     const { data: capData } = await axios.get(
       "https://rest.coincap.io/v3/assets",
       { headers: { Authorization: `Bearer ${process.env.COINCAP_API_KEY}` } }
     );
     const coins = capData.data.slice(0, 15);
 
-    // 2. Enrich with sparkline
-    const coinsWithSpark = await Promise.all(
-      coins.map(async c => {
-        // Resolve to CoinGecko id via symbol or id
-        const key = c.symbol.toLowerCase();
-        const geckoId = geckoMap[key] || c.id;
-        let sparkline = [];
-        try {
-          const cgRes = await axios.get(
-            `https://api.coingecko.com/api/v3/coins/${geckoId}`,
-            { params: { sparkline: true } }
-          );
-          sparkline =
-            cgRes.data.sparkline?.price ||
-            cgRes.data.market_data?.sparkline_7d?.price ||
-            [];
-        } catch (err) {
-          console.warn(`Sparkline error for ${c.id} (mapped to ${geckoId}):`, err.message);
-        }
-        return { ...c, sparkline };
-      })
-    );
+    const coinsWithSpark = [];
+    for (const c of coins) {
+      const key = c.symbol.toLowerCase();
+      const geckoId = geckoMap[key] || c.id;
+      console.log(`Fetching sparkline for ${c.id} (mapped to ${geckoId})`);
 
-    // 3. Compute totals & dominance
+      let sparkline = [];
+      try {
+        // Use market_chart endpoint for reliable hourly data
+        const chartRes = await axios.get(
+          `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart`,
+          { params: { vs_currency: 'usd', days: 1, interval: 'hourly' } }
+        );
+        sparkline = chartRes.data.prices.map(p => p[1]);
+        console.log(`→ received ${sparkline.length} points for ${geckoId}`);
+      } catch (err) {
+        console.warn(`Sparkline error for ${geckoId}:`, err.message);
+      }
+
+      coinsWithSpark.push({ ...c, sparkline });
+      // small delay to respect rate limits
+      await new Promise(r => setTimeout(r, 300));
+    }
+
     const total_market_cap = coinsWithSpark.reduce((sum, x) => sum + x.marketCapUsd, 0);
     const total_volume = coinsWithSpark.reduce((sum, x) => sum + x.volumeUsd24Hr, 0);
     const btc = coinsWithSpark.find(x => x.symbol === 'BTC');
     const btc_dominance = btc ? (btc.marketCapUsd / total_market_cap) * 100 : 0;
 
-    // 4. Return response
     res.json({ coins: coinsWithSpark, total_market_cap, total_volume, btc_dominance });
   } catch (err) {
     console.error('CoinCap market error:', err.message);
