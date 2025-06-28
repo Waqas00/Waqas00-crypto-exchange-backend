@@ -12,8 +12,17 @@ router.get('/symbols', async (req, res) => {
     return res.json(coins);
   } catch (err) {
     console.error('Binance symbols error:', err.response?.data || err.message);
-    // *Important*: return [] here so the frontend can still render
-    return res.json([]);
+    // Fallback: fetch top assets from CoinCap
+    try {
+      const cc = await axios.get('https://api.coincap.io/v2/assets');
+      const fallback = cc.data.data
+        .slice(0, 100)
+        .map(a => ({ id: a.id, symbol: a.symbol }));
+      return res.json(fallback);
+    } catch (e) {
+      console.error('CoinCap fallback error:', e.response?.data || e.message);
+      return res.json([]);
+    }
   }
 });
 
@@ -31,7 +40,7 @@ router.get('/stats/:symbol', async (req, res) => {
     });
   } catch (err) {
     console.error(`Binance stats error for ${req.params.symbol}:`, err.response?.data || err.message);
-    // Fallback zeroed stats
+    // Fallback: return zeroed stats
     return res.json({ symbol: req.params.symbol, lastPrice: 0, priceChangePercent: 0 });
   }
 });
@@ -46,6 +55,7 @@ router.get('/orderbook/:symbol', async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error(`Binance depth error for ${req.params.symbol}:`, err.response?.data || err.message);
+    // Fallback: empty book
     return res.json({ bids: [], asks: [] });
   }
 });
