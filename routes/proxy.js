@@ -1,62 +1,63 @@
 // src/routes/proxy.js
-// Simple in-memory caching to avoid too many Coingecko calls
+// Backend proxy for sparklines using Binance (no CORS issues)
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-// Cache for default top50 request
-let top50Cache = null;
-let top50Timestamp = 0;
-// TTL of 5 minutes to reduce rate-limit hits
-const TTL_MS = 5 * 60 * 1000;
+// Simple in-memory per-symbol cache
+// { [id]: { timestamp: Number, data: number[] } }
+const sparkCache = {};
+const TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // GET /api/sparkline?ids=bitcoin,ethereum,xrp
+// Returns: { bitcoin: [<24 hourly closes>], ethereum: [...], ... }
 router.get('/', async (req, res) => {
   const { ids } = req.query;
+  if (!ids) {
+    return res.status(400).json({ error: 'Missing `ids` query parameter' });
+  }
+
   const now = Date.now();
+  const symbols = ids.split(',');
+  const result = {};
 
-  // Prepare Coingecko query params
-  const params = { vs_currency: 'usd', sparkline: true };
-  if (ids) {
-    params.ids = ids;
-  } else {
-    params.order = 'market_cap_desc';
-    params.per_page = 50;
-    params.page = 1;
-  }
+  // Fetch each symbol from Binance
+  await Promise.all(symbols.map(async id => {
+    const symbolPair = `${id.toUpperCase()}USDT`;
+    const cacheEntry = sparkCache[id];
 
-  // Return cached top50 if still valid
-  if (!ids && top50Cache && now - top50Timestamp < TTL_MS) {
-    return res.json(top50Cache);
-  }
-
-  try {
-    const response = await axios.get(
-      'https://api.coingecko.com/api/v3/coins/markets',
-      { params }
-    );
-    const data = response.data;
-
-    // Update cache for default top50
-    if (!ids) {
-      top50Cache = data;
-      top50Timestamp = Date.now();
+    // Serve from cache if fresh
+    if (cacheEntry && now - cacheEntry.timestamp < TTL_MS) {
+      result[id] = cacheEntry.data;
+      return;
     }
 
-    return res.json(data);
-  } catch (err) {
-    const status = err.response?.status;
-    console.error('Coingecko error:', status, err.response?.data || err.message);
-    // On rate limit, serve stale cache if available
-    if (status === 429 && !ids && top50Cache) {
-      console.warn('Serving stale cache due to rate limit');
-      return res.json(top50Cache);
+    try {
+      const resp = await axios.get(
+        'https://api.binance.com/api/v3/klines',
+        {
+          params: {
+            symbol: symbolPair,
+            interval: '1h',
+            limit: 24
+          }
+        }
+      );
+
+      // Kline format: [ openTime, open, high, low, close, ... ]
+      const closes = resp.data.map(k => parseFloat(k[4]));
+      result[id] = closes;
+
+      // Update cache
+      sparkCache[id] = { data: closes, timestamp: now };
+    } catch (err) {
+      console.error(`Binance sparkline error for ${symbolPair}:`, err.message);
+      // Fallback to stale cache if available, else empty
+      result[id] = cacheEntry ? cacheEntry.data : [];
     }
-    if (err.response) {
-      return res.status(status).json(err.response.data);
-    }
-    return res.status(500).json({ error: err.message });
-  }
+  }));
+
+  res.json(result);
 });
 
 module.exports = router;
