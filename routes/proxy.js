@@ -21,43 +21,48 @@ router.get('/', async (req, res) => {
   const symbols = ids.split(',');
   const result = {};
 
-  // Fetch each symbol from Binance
   await Promise.all(symbols.map(async id => {
-    const symbolPair = `${id.toUpperCase()}USDT`;
     const cacheEntry = sparkCache[id];
-
-    // Serve from cache if fresh
+    // Serve from cache if still fresh
     if (cacheEntry && now - cacheEntry.timestamp < TTL_MS) {
       result[id] = cacheEntry.data;
       return;
     }
 
     try {
+      // Determine the Binance ticker (BTC, ETH, etc.)
+      let symbol = id;
+      if (id.length > 3) {
+        // Fetch CoinCap asset to get its symbol
+        const capRes = await axios.get(
+          `https://rest.coincap.io/v3/assets/${id}`,
+          { headers: { Authorization: `Bearer ${process.env.COINCAP_API_KEY}` } }
+        );
+        symbol = capRes.data.data.symbol.toLowerCase();
+      }
+
+      const symbolPair = `${symbol.toUpperCase()}USDT`;
       const resp = await axios.get(
         'https://api.binance.com/api/v3/klines',
         {
-          params: {
-            symbol: symbolPair,
-            interval: '1h',
-            limit: 24
-          }
+          params: { symbol: symbolPair, interval: '1h', limit: 24 }
         }
       );
 
-      // Kline format: [ openTime, open, high, low, close, ... ]
+      // Extract closing prices
       const closes = resp.data.map(k => parseFloat(k[4]));
       result[id] = closes;
-
       // Update cache
       sparkCache[id] = { data: closes, timestamp: now };
+
     } catch (err) {
-      console.error(`Binance sparkline error for ${symbolPair}:`, err.message);
-      // Fallback to stale cache if available, else empty
+      console.error(`Sparkline proxy error for ${id}:`, err.message);
+      // Fallback: use stale cache or empty array
       result[id] = cacheEntry ? cacheEntry.data : [];
     }
   }));
 
-  res.json(result);
+  return res.json(result);
 });
 
 module.exports = router;
