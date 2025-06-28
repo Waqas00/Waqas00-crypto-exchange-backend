@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
     );
 
     // Map and sanitize coin data (no sparkline here)
-    const coins = data.data.slice(0, 15).map(c => ({
+    const coins = data.data.slice(0, 50).map(c => ({
       id: c.id,
       name: c.name,
       symbol: c.symbol,
