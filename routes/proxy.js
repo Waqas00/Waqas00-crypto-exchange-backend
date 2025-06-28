@@ -1,16 +1,17 @@
 // src/routes/proxy.js
-const express    = require('express');
-const axios      = require('axios');
-const NodeCache  = require('node-cache');
+// First install cache: npm install node-cache
+const express = require('express');
+const axios = require('axios');
+const NodeCache = require('node-cache');
 
-// cache each batch request for 1 minute
+// cache batch responses for 60 seconds
+typeof NodeCache; // ensure import
 const cache = new NodeCache({ stdTTL: 60 });
-
 const router = express.Router();
 
 // GET /api/sparkline?ids=bitcoin,ethereum,xrp
 router.get('/', async (req, res) => {
-  const ids = req.query.ids;
+  const { ids } = req.query;
   if (!ids) {
     return res.status(400).json({ error: 'Missing query parameter: ids' });
   }
@@ -24,15 +25,8 @@ router.get('/', async (req, res) => {
   try {
     const response = await axios.get(
       'https://api.coingecko.com/api/v3/coins/markets',
-      {
-        params: {
-          vs_currency: 'usd',
-          ids: ids,         // comma-separated list of coin IDs
-          sparkline: true
-        }
-      }
+      { params: { vs_currency: 'usd', ids, sparkline: true } }
     );
-
     cache.set(key, response.data);
     return res.json(response.data);
   } catch (err) {
