@@ -5,13 +5,14 @@ const router = express.Router();
 // 1) List USDT base assets
 router.get('/symbols', async (req, res) => {
   try {
-    const { data } = await axios.get('https://api.binance.com/api/v3/exchangeInfo');
-    const coins = data.symbols
+    const info = await axios.get('https://api.binance.com/api/v3/exchangeInfo');
+    const coins = info.data.symbols
       .filter(s => s.quoteAsset === 'USDT')
       .map(s => ({ id: s.baseAsset.toLowerCase(), symbol: s.baseAsset }));
-    res.json(coins);
+    return res.json(coins);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch symbols' });
+    console.error('Binance symbols error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch symbols' });
   }
 });
 
@@ -22,9 +23,19 @@ router.get('/stats/:symbol', async (req, res) => {
       'https://api.binance.com/api/v3/ticker/24hr',
       { params: { symbol: req.params.symbol } }
     );
-    res.json(data);
+    return res.json({
+      symbol: data.symbol,
+      lastPrice: parseFloat(data.lastPrice),
+      priceChangePercent: parseFloat(data.priceChangePercent)
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch stats' });
+    console.error(`Binance stats error for ${req.params.symbol}:`, err.message);
+    // Fallback: return zeroed stats
+    return res.json({
+      symbol: req.params.symbol,
+      lastPrice: 0,
+      priceChangePercent: 0
+    });
   }
 });
 
@@ -35,9 +46,10 @@ router.get('/orderbook/:symbol', async (req, res) => {
       'https://api.binance.com/api/v3/depth',
       { params: { symbol: req.params.symbol, limit: 50 } }
     );
-    res.json(data);
+    return res.json(data);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch order book' });
+    console.error(`Binance depth error for ${req.params.symbol}:`, err.message);
+    return res.status(500).json({ error: 'Failed to fetch order book' });
   }
 });
 
