@@ -7,14 +7,15 @@ const router = express.Router();
 // Cache holder for default top50 request
 let top50Cache = null;
 let top50Timestamp = 0;
-const TTL_MS = 60 * 1000; // 60 seconds
+// Increase TTL to 5 minutes to reduce rate-limit hits
+const TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // GET /api/sparkline?ids=bitcoin,ethereum,xrp
 router.get('/', async (req, res) => {
   const { ids } = req.query;
   const now = Date.now();
 
-  // Build query params
+  // Build query params for Coingecko
   const params = { vs_currency: 'usd', sparkline: true };
   if (ids) {
     params.ids = ids;
@@ -24,7 +25,7 @@ router.get('/', async (req, res) => {
     params.page = 1;
   }
 
-  // If default top50 and cache valid, return it
+  // Serve from cache if valid
   if (!ids && top50Cache && now - top50Timestamp < TTL_MS) {
     return res.json(top50Cache);
   }
@@ -44,11 +45,16 @@ router.get('/', async (req, res) => {
 
     return res.json(data);
   } catch (err) {
-    if (err.response) {
-      console.error('Coingecko error:', err.response.status, err.response.data);
-      return res.status(err.response.status).json(err.response.data);
+    const status = err.response?.status;
+    console.error('Coingecko error:', status, err.response?.data || err.message);
+    // On rate limit (429) return stale cache if available
+    if (status === 429 && !ids && top50Cache) {
+      console.warn('Serving stale cache due to rate limit');
+      return res.json(top50Cache);
     }
-    console.error('Proxy error:', err.message);
+    if (err.response) {
+      return res.status(status).json(err.response.data);
+    }
     return res.status(500).json({ error: err.message });
   }
 });
