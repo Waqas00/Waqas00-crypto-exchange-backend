@@ -5,14 +5,13 @@ const router = express.Router();
 // 1) List USDT base assets
 router.get('/symbols', async (req, res) => {
   try {
-    const info = await axios.get('https://api.binance.com/api/v3/exchangeInfo');
-    const coins = info.data.symbols
+    const { data } = await axios.get('https://api.binance.com/api/v3/exchangeInfo');
+    const coins = data.symbols
       .filter(s => s.quoteAsset === 'USDT')
       .map(s => ({ id: s.baseAsset.toLowerCase(), symbol: s.baseAsset }));
     return res.json(coins);
   } catch (err) {
     console.error('Binance symbols error:', err.response?.data || err.message);
-    // Fallback: return empty list
     return res.json([]);
   }
 });
@@ -31,7 +30,6 @@ router.get('/stats/:symbol', async (req, res) => {
     });
   } catch (err) {
     console.error(`Binance stats error for ${req.params.symbol}:`, err.response?.data || err.message);
-    // Fallback: return zeroed stats
     return res.json({ symbol: req.params.symbol, lastPrice: 0, priceChangePercent: 0 });
   }
 });
@@ -46,7 +44,6 @@ router.get('/orderbook/:symbol', async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error(`Binance depth error for ${req.params.symbol}:`, err.response?.data || err.message);
-    // Fallback: return empty orderbook
     return res.json({ bids: [], asks: [] });
   }
 });
