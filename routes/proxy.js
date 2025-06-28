@@ -23,46 +23,46 @@ router.get('/', async (req, res) => {
 
   await Promise.all(symbols.map(async id => {
     const cacheEntry = sparkCache[id];
-    // Serve from cache if still fresh
+    // Return cached data if fresh
     if (cacheEntry && now - cacheEntry.timestamp < TTL_MS) {
       result[id] = cacheEntry.data;
       return;
     }
 
     try {
-      // Determine the Binance ticker (BTC, ETH, etc.)
+      // Determine Binance ticker symbol
       let symbol = id;
       if (id.length > 3) {
-        // Fetch CoinCap asset to get its symbol
-        const capRes = await axios.get(
-          `https://rest.coincap.io/v3/assets/${id}`,
-          { headers: { Authorization: `Bearer ${process.env.COINCAP_API_KEY}` } }
-        );
-        symbol = capRes.data.data.symbol.toLowerCase();
+        // Fetch CoinCap to get correct ticker (no auth needed)
+        const capRes = await axios.get(`https://api.coincap.io/v2/assets/${id}`);
+        symbol = capRes.data.data.symbol;
+      }
+      symbol = symbol.toUpperCase();
+      // Prevent overly long symbols
+      if (symbol.length > 10) {
+        symbol = symbol.slice(0, 10);
       }
 
-      const symbolPair = `${symbol.toUpperCase()}USDT`;
-      const resp = await axios.get(
+      const symbolPair = `${symbol}USDT`;
+      console.log(`Fetching Binance klines for ${symbolPair}`);
+
+      const binanceRes = await axios.get(
         'https://api.binance.com/api/v3/klines',
-        {
-          params: { symbol: symbolPair, interval: '1h', limit: 24 }
-        }
+        { params: { symbol: symbolPair, interval: '1h', limit: 24 } }
       );
 
-      // Extract closing prices
-      const closes = resp.data.map(k => parseFloat(k[4]));
+      const closes = binanceRes.data.map(k => parseFloat(k[4]));
       result[id] = closes;
-      // Update cache
       sparkCache[id] = { data: closes, timestamp: now };
 
     } catch (err) {
-      console.error(`Sparkline proxy error for ${id}:`, err.message);
-      // Fallback: use stale cache or empty array
+      console.error(`Error fetching sparkline for ${id}:`, err.response ? err.response.data : err.message);
+      // Fallback to stale cache or empty array
       result[id] = cacheEntry ? cacheEntry.data : [];
     }
   }));
 
-  return res.json(result);
+  res.json(result);
 });
 
 module.exports = router;
