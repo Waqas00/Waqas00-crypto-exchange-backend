@@ -4,18 +4,18 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-// Cache holder for default top50 request
+// Cache for default top50 request
 let top50Cache = null;
 let top50Timestamp = 0;
-// Increase TTL to 5 minutes to reduce rate-limit hits
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
+// TTL of 5 minutes to reduce rate-limit hits
+const TTL_MS = 5 * 60 * 1000;
 
 // GET /api/sparkline?ids=bitcoin,ethereum,xrp
 router.get('/', async (req, res) => {
   const { ids } = req.query;
   const now = Date.now();
 
-  // Build query params for Coingecko
+  // Prepare Coingecko query params
   const params = { vs_currency: 'usd', sparkline: true };
   if (ids) {
     params.ids = ids;
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
     params.page = 1;
   }
 
-  // Serve from cache if valid
+  // Return cached top50 if still valid
   if (!ids && top50Cache && now - top50Timestamp < TTL_MS) {
     return res.json(top50Cache);
   }
@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
   } catch (err) {
     const status = err.response?.status;
     console.error('Coingecko error:', status, err.response?.data || err.message);
-    // On rate limit (429) return stale cache if available
+    // On rate limit, serve stale cache if available
     if (status === 429 && !ids && top50Cache) {
       console.warn('Serving stale cache due to rate limit');
       return res.json(top50Cache);
