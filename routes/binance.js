@@ -12,6 +12,7 @@ router.get('/symbols', async (req, res) => {
     return res.json(coins);
   } catch (err) {
     console.error('Binance symbols error:', err.response?.data || err.message);
+    // *Important*: return [] here so the frontend can still render
     return res.json([]);
   }
 });
@@ -30,6 +31,7 @@ router.get('/stats/:symbol', async (req, res) => {
     });
   } catch (err) {
     console.error(`Binance stats error for ${req.params.symbol}:`, err.response?.data || err.message);
+    // Fallback zeroed stats
     return res.json({ symbol: req.params.symbol, lastPrice: 0, priceChangePercent: 0 });
   }
 });
