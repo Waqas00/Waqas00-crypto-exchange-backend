@@ -12,10 +12,8 @@ router.get('/symbols', async (req, res) => {
     return res.json(coins);
   } catch (err) {
     console.error('Binance symbols error:', err.response?.data || err.message);
-    // Fallback: return empty list to avoid breaking frontend
+    // Fallback: return empty list
     return res.json([]);
-  }
-});
   }
 });
 
@@ -48,6 +46,7 @@ router.get('/orderbook/:symbol', async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error(`Binance depth error for ${req.params.symbol}:`, err.response?.data || err.message);
+    // Fallback: return empty orderbook
     return res.json({ bids: [], asks: [] });
   }
 });
