@@ -1,5 +1,5 @@
 // src/routes/proxy.js
-// Backend proxy for sparklines using Binance (no CORS issues)
+// Backend proxy for 24h hourly closes using Binance Futures Continuous Contracts (no CORS issues)
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
@@ -23,41 +23,44 @@ router.get('/', async (req, res) => {
 
   await Promise.all(symbols.map(async id => {
     const cacheEntry = sparkCache[id];
-    // Return cached data if fresh
     if (cacheEntry && now - cacheEntry.timestamp < TTL_MS) {
       result[id] = cacheEntry.data;
       return;
     }
 
     try {
-      // Determine Binance ticker symbol
-      let symbol = id;
+      // Resolve CoinCap ID -> ticker symbol if needed
+      let ticker = id;
       if (id.length > 3) {
-        // Fetch CoinCap to get correct ticker (no auth needed)
         const capRes = await axios.get(`https://api.coincap.io/v2/assets/${id}`);
-        symbol = capRes.data.data.symbol;
+        ticker = capRes.data.data.symbol;
       }
-      symbol = symbol.toUpperCase();
-      // Prevent overly long symbols
-      if (symbol.length > 10) {
-        symbol = symbol.slice(0, 10);
-      }
+      ticker = ticker.toUpperCase();
 
-      const symbolPair = `${symbol}USDT`;
-      console.log(`Fetching Binance klines for ${symbolPair}`);
+      // Continuous Futures endpoint parameters
+      const pair = `${ticker}USDT`;
+      const contractType = 'PERPETUAL';
+      const interval = '1h';
+      const limit = 24;
 
+      console.log(`Fetching Binance futures continuous klines for ${pair}`);
+
+      // Call Binance USD-M Futures Continuous Klines
       const binanceRes = await axios.get(
-        'https://api.binance.com/api/v3/klines',
-        { params: { symbol: symbolPair, interval: '1h', limit: 24 } }
+        'https://fapi.binance.com/fapi/v1/continuousKlines',
+        { params: { pair, contractType, interval, limit } }
       );
 
+      // Extract closing prices from each kline entry [ openTime, open, high, low, close, ... ]
       const closes = binanceRes.data.map(k => parseFloat(k[4]));
       result[id] = closes;
-      sparkCache[id] = { data: closes, timestamp: now };
 
+      // Update cache
+      sparkCache[id] = { data: closes, timestamp: now };
     } catch (err) {
-      console.error(`Error fetching sparkline for ${id}:`, err.response ? err.response.data : err.message);
-      // Fallback to stale cache or empty array
+      console.error(`Error fetching futures sparkline for ${id}:`,
+        err.response ? err.response.data : err.message
+      );
       result[id] = cacheEntry ? cacheEntry.data : [];
     }
   }));
