@@ -1,7 +1,6 @@
 // src/routes/binance.js
 const express = require('express');
 const axios = require('axios');
-const Binance = require('binance-api-node').default;
 const router = express.Router();
 
 // Initialize Binance WebSocket client and in-memory ticker cache
