@@ -1,19 +1,23 @@
-const { startBinanceWS } = require('./services/binance_ws');
-startBinanceWS(); // Start background WebSocket data stream
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const Binance = require('binance-api-node').default;
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
 
+// Import your shared Binance WebSocket/cache logic
+const { startBinanceWS, priceCache, candleCache, SYMBOLS } = require('./services/binance_ws');
+
+// Import your routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
 const marketRoutes = require('./routes/market');
 const binanceRoutes = require('./routes/binance');
 const proxyRouter = require('./routes/proxy');
+
+// Start Binance WebSocket/caching service (one connection per symbol only)
+startBinanceWS();
 
 const app = express();
 const server = http.createServer(app);
@@ -31,7 +35,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB error:', err));
 
-// REST endpoints
+// REST endpoints (user/admin/auth/history etc)
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
@@ -39,27 +43,32 @@ app.use('/api/market', marketRoutes);
 app.use('/api/binance', binanceRoutes);
 app.use('/api/sparkline', proxyRouter);
 
-// WebSocket for 1h candles
+// SOCKET.IO: One connection per client, NO per-client Binance logic!
 io.on('connection', socket => {
   console.log('Client connected:', socket.id);
-  socket.on('subscribeCandles', ({ symbol = 'BTCUSDT', interval = '1h' }) => {
-    const clean = Binance().ws.candles(symbol, interval, candle => {
-      if (candle.isFinal) {
-        socket.emit('candle', {
-          symbol,
-          interval,
-          openTime: candle.startTime,
-          closeTime: candle.closeTime,
-          open: parseFloat(candle.open),
-          high: parseFloat(candle.high),
-          low: parseFloat(candle.low),
-          close: parseFloat(candle.close),
-          volume: parseFloat(candle.volume)
-        });
-      }
-    });
-    socket.on('disconnect', clean);
+
+  // Subscribe to all tickers (Home page)
+  socket.on('subscribeAllTickers', () => {
+    const coins = SYMBOLS.map(symbol => priceCache[symbol] || { symbol });
+    socket.emit('tickers', coins);
   });
+
+  // Subscribe to a single ticker (for MarketCard/details)
+  socket.on('subscribeTicker', ({ symbol }) => {
+    if (priceCache[symbol]) {
+      socket.emit('ticker', priceCache[symbol]);
+    }
+  });
+
+  // Subscribe to 1m candles (for charts, sparklines, etc)
+  socket.on('subscribeCandles', ({ symbol, interval = '1m' }) => {
+    if (interval !== '1m') return; // Only 1m supported by default
+    if (candleCache[symbol]) {
+      socket.emit('candle', { symbol, candles: candleCache[symbol] });
+    }
+  });
+
+  // You can add unsubscribe events as needed, but they're not strictly necessary for this pattern.
 });
 
 const PORT = process.env.PORT || 5000;
