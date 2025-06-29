@@ -1,50 +1,33 @@
+// routes/proxy.js
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
+const { candleCache } = require('../services/binance_ws');
 
-const sparkCache = {};
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
-
+// GET /api/sparkline?ids=bitcoin,ethereum,...
 router.get('/', async (req, res) => {
   const { ids } = req.query;
-  if (!ids) {
-    return res.status(400).json({ error: 'Missing `ids` parameter' });
-  }
+  if (!ids) return res.status(400).json({ error: 'Missing ids param' });
 
-  const now = Date.now();
-  const keys = ids.split(',');
+  const nameToSymbol = {
+    bitcoin: 'BTCUSDT',
+    ethereum: 'ETHUSDT',
+    bnb: 'BNBUSDT',
+    solana: 'SOLUSDT',
+    xrp: 'XRPUSDT',
+    dogecoin: 'DOGEUSDT',
+    cardano: 'ADAUSDT',
+    avalanche: 'AVAXUSDT',
+    chainlink: 'LINKUSDT',
+    tron: 'TRXUSDT'
+    // Extend this map as needed!
+  };
+  const idsArr = ids.split(',').map(id => id.trim().toLowerCase());
+
   const result = {};
-
-  await Promise.all(keys.map(async key => {
-    const cache = sparkCache[key];
-    if (cache && now - cache.timestamp < TTL_MS) {
-      result[key] = cache.data;
-      return;
-    }
-
-    try {
-      let ticker = key;
-      if (!/^[A-Za-z0-9]{2,5}$/.test(key)) {
-        const cap = await axios.get(`https://api.coincap.io/v2/assets/${key}`);
-        ticker = cap.data.data.symbol;
-      }
-      ticker = ticker.toUpperCase();
-      const symbol = `${ticker}USDT`;
-
-      const { data } = await axios.get('https://api.binance.com/api/v3/klines', {
-        params: { symbol, interval: '1h', limit: 24 }
-      });
-
-      const closes = data.map(c => parseFloat(c[4]));
-      result[key] = closes;
-      sparkCache[key] = { data: closes, timestamp: now };
-
-    } catch (err) {
-      console.error(`Spark proxy error (${key}):`, err.response?.data || err.message);
-      result[key] = (sparkCache[key]?.data) || [];
-    }
-  }));
-
+  for (let id of idsArr) {
+    const sym = nameToSymbol[id];
+    result[id] = candleCache[sym] ? candleCache[sym].map(c => Number(c.close)) : [];
+  }
   res.json(result);
 });
 

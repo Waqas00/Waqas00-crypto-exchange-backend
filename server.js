@@ -1,3 +1,5 @@
+const { startBinanceWS } = require('./services/binance_ws');
+startBinanceWS(); // Start background WebSocket data stream
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
