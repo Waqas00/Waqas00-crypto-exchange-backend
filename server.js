@@ -1,33 +1,28 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-// Import your shared Binance WebSocket/cache logic
-const { startBinanceWS, priceCache, candleCache, SYMBOLS } = require('./services/binance_ws');
+// Import your CryptoCompare polling/cache logic
+const { priceCache, candleCache, COINS } = require('./services/cryptocompare');
 
-// Import your routes
+// Import your other routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
 const marketRoutes = require('./routes/market');
-const binanceRoutes = require('./routes/binance');
+const binanceRoutes = require('./routes/binance'); // Optional, can be removed
 const proxyRouter = require('./routes/proxy');
-
-// Start Binance WebSocket/caching service (one connection per symbol only)
-startBinanceWS();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: process.env.CORS } });
 
 // Middleware
 app.use(cors({ origin: process.env.CORS }));
 app.use(express.json());
 
-// MongoDB connection
+// MongoDB connection (unchanged)
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -35,37 +30,13 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB error:', err));
 
-// REST endpoints (user/admin/auth/history etc)
+// REST endpoints (user/admin/auth/market etc)
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/market', marketRoutes);
-app.use('/api/binance', binanceRoutes);
+app.use('/api/binance', binanceRoutes); // Optional
 app.use('/api/sparkline', proxyRouter);
 
-io.on('connection', socket => {
-  console.log('Client connected:', socket.id);
-
-  // Send all ticker data (for homepage)
-  socket.on('subscribeAllTickers', () => {
-    const coins = SYMBOLS.map(symbol => priceCache[symbol] || { symbol });
-    socket.emit('tickers', coins);
-  });
-
-  // Send latest ticker for a symbol (for detail/cards)
-  socket.on('subscribeTicker', ({ symbol }) => {
-    if (priceCache[symbol]) {
-      socket.emit('ticker', priceCache[symbol]);
-    }
-  });
-
-  // Send 1m candles for a symbol (for charts)
-  socket.on('subscribeCandles', ({ symbol, interval = '1m' }) => {
-    if (interval !== '1m') return; // Only 1m supported by default
-    if (candleCache[symbol]) {
-      socket.emit('candle', { symbol, candles: candleCache[symbol] });
-    }
-  });
-});
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
